@@ -1,11 +1,13 @@
 #! /usr/bin/env lua
 
+-------------------------------------------------------------------------------
 --
 -- Read in the local network's database of known hosts
 --
 NetworkDatabase = require "mac-addresses"
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to query the OS to get this platform's NIC data
 --
@@ -20,7 +22,8 @@ function ShellHandler:parseShellCmd ( shellCommand, Results )
         and io.input( tempFile ) then
 
         for line in io.lines() do
-            if self:findMatch( line ) then break end
+            if line:match( "%w" ) and
+                self:findMatch( line ) then break end
         end
 
         io.input():close()
@@ -33,6 +36,7 @@ function ShellHandler:parseShellCmd ( shellCommand, Results )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to query the OS to get this platform's vendor
 --
@@ -51,6 +55,7 @@ function myVendor ( )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to query the OS to get this platform's NIC data
 --
@@ -69,6 +74,7 @@ function myNICs ( )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to query the OS to get this platform's NICs' MAC addresses
 --
@@ -88,6 +94,7 @@ function myMACs ( )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to query the OS to get hosts on the local network
 --
@@ -146,6 +153,7 @@ function myLAN ( )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to determine the MAC address of my NIC on my LAN
 --
@@ -178,6 +186,7 @@ function getMyMacAddr ( myIPnumber )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Function to get a table of all the devices detected on the network
 --
@@ -193,6 +202,7 @@ function getNetworkDevices ( )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Check a network host against a database of known hosts
 --
@@ -209,6 +219,7 @@ function checkNetworkHost ( NetworkHost )
 end
 
 
+-------------------------------------------------------------------------------
 --
 -- Display a table of hosts
 --
@@ -230,6 +241,8 @@ function displayHost( NetworkHost, hostType )
 end
 
 
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 --
 -- Gather the data, crunch it, and display the results
 --
@@ -257,3 +270,5 @@ print()
 for _, UnknownHost in ipairs( UnknownHosts ) do
     displayHost( UnknownHost, "Unknown" )
 end
+
+-------------------------------------------------------------------------------
