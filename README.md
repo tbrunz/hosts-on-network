@@ -1,2 +1,2 @@
 # hosts-on-network
-Scan a network for hosts &amp; identify those that are known &amp; unknown
+Scan a network for hosts, identifying which are known & which are unknown
