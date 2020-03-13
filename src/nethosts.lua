@@ -190,7 +190,7 @@ end
 --
 -- Function to get a table of all the devices detected on the network
 --
-function getNetworkDevices ( )
+function findHostsOnNetwork ( )
 
     MyLAN = myLAN()
 
@@ -204,16 +204,38 @@ end
 
 -------------------------------------------------------------------------------
 --
--- Check a network host against a database of known hosts
+-- Gather the data, crunch it, and display the results
 --
-function checkNetworkHost ( NetworkHost )
+function sortHostsByFamiliarity ( HostsFoundOnNetwork )
+    local DatabaseHostByMAC = { }
 
-    for _, KnownHost in ipairs( NetworkDatabase.HostsByMAC ) do
+    -- Turn the NetworkDatabase sequence "inside out" to make an
+    -- associative array of each known host keyed by its MAC addr.
+    for _, DatabaseHost in ipairs( NetworkDatabase.HostsByMAC ) do
+        --
+        -- Extract the host's MAC address to use as the key to itself.
+        DatabaseHostByMAC[ DatabaseHost.macAddr ] = DatabaseHost
+    end
 
-        if NetworkHost.macAddr == KnownHost.macAddr then
+    -- Empty the two sorted tables, then fill them with sorted hosts.
+    HostsThatAreKnown   = { }
+    HostsThatAreUnknown = { }
 
-            NetworkHost.description = KnownHost.description
-            return true
+    -- Sort the discovered hosts into two tables, depending on whether or
+    -- not they are known hosts (listed in the 'NetworkDatabase' table).
+    for _, ThisNetworkHost in ipairs( HostsFoundOnNetwork ) do
+        --
+        -- If this host is in the database, the lookup is non-nil.
+        local DatabaseHost = DatabaseHostByMAC[ ThisNetworkHost.macAddr ]
+
+        if DatabaseHost then
+            -- If known, then set its description field from the DB.
+            ThisNetworkHost.description = DatabaseHost.description
+
+            HostsThatAreKnown[ #HostsThatAreKnown + 1 ] = ThisNetworkHost
+        else
+            -- We don't know this one, so we have no other description.
+            HostsThatAreUnknown[ #HostsThatAreUnknown + 1 ] = ThisNetworkHost
         end
     end
 end
@@ -221,54 +243,79 @@ end
 
 -------------------------------------------------------------------------------
 --
--- Display a table of hosts
+-- Display a host record as part of a hosts table report
 --
-function displayHost( NetworkHost, hostType )
-    local description = NetworkHost.description
+function printHostReportRecord ( familiarityTag, NetworkHost )
+    local ipNumberString = tostring(NetworkHost.ipNumber)
+    local macAddrString  = tostring(NetworkHost.macAddr)
+    local description    = NetworkHost.description
+    local reportFormat = "%s host: IP number %-13s MAC addr %s %s "
 
-    if not description then
-        description = ""
-    else
+    -- Some hosts will report a description of themselves; if so, include it.
+    -- If not, then 'description' will be nil; change to an empty string.
+    if description then
         description = "  descr: "..description
-    end
-
-    print( hostType.." host: IP number "..
-        string.format("%-13s", tostring(NetworkHost.ipNumber))..
-        "  MAC addr "..tostring(NetworkHost.macAddr)..
-        --"  host is "..string.format("%-4s", tostring(NetworkHost.status))..
-        description
-        )
-end
-
-
--------------------------------------------------------------------------------
--------------------------------------------------------------------------------
---
--- Gather the data, crunch it, and display the results
---
-getNetworkDevices()
-
-KnownHosts = { }
-UnknownHosts = { }
-
-for _, NetworkHost in ipairs( MyLAN ) do
-    if checkNetworkHost( NetworkHost ) then
-        KnownHosts[ #KnownHosts+1 ] = NetworkHost
     else
-        UnknownHosts[ #UnknownHosts+1 ] = NetworkHost
+        description = ""
+    end
+
+    -- Use the provided format string to print this host record.
+    print( string.format( reportFormat,
+        familiarityTag, ipNumberString, macAddrString, description ) )
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Display a report table for one of known/unknown hosts that were found
+--
+function printHostReport ( SortedHosts, familiarityTag )
+
+    print()
+
+    -- Either report that we didn't find any hosts of this type...
+    if #SortedHosts == 0 then
+        print( string.format( "No %s hosts found.", familiarityTag ) )
+    end
+
+    -- Or print out all the host records for this table.
+    for _, ThisHost in ipairs( SortedHosts ) do
+
+        printHostReportRecord( familiarityTag, ThisHost )
     end
 end
 
-print()
 
-for _, KnownHost in ipairs( KnownHosts ) do
-    displayHost( KnownHost, "Known" )
+-------------------------------------------------------------------------------
+--
+-- Display a pair of tables of the known/unknown hosts that were found
+--
+function printNetworkHostsReport ( )
+    local isKnownTag   = "Known"
+    local isUnknownTag = "Unknown"
+
+    -- Start with the known hosts, then the unknown hosts.
+    printHostReport( HostsThatAreKnown, isKnownTag )
+
+    printHostReport( HostsThatAreUnknown, isUnknownTag )
 end
 
-print()
 
-for _, UnknownHost in ipairs( UnknownHosts ) do
-    displayHost( UnknownHost, "Unknown" )
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+--
+function main ( )
+
+    -- Examine the network to gather data on (visible) hosts.
+    -- This data goes into table 'MyLAN'.
+    findHostsOnNetwork()
+
+    sortHostsByFamiliarity( MyLAN )
+
+    printNetworkHostsReport()
 end
+
+
+main()
 
 -------------------------------------------------------------------------------
