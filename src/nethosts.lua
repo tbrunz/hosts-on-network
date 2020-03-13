@@ -9,88 +9,46 @@ NetworkDatabase = require "mac-addresses"
 
 -------------------------------------------------------------------------------
 --
--- Function to query the OS to get this platform's NIC data
+-- Function to have the OS run a shell command
 --
-ShellHandler = { }
-
-function ShellHandler:parseShellCmd ( shellCommand, Results )
-
+function runShellCommand( shellCommand, resultHandler )
+    -- Run a (bash) shell command in the host operating system.  Note
+    -- that we can't receive the shell command output directly, but we
+    -- CAN tell the host OS to redirect the output to a (temp) file.
+    -- Note that we can't use 'mktemp': We can't receive its output,
+    -- which is its name/path is!  So we'll have to provide the path.
     local tempFile = "/tmp/lua-shell-cmd"
-    self.result = Results
 
-    if os.execute( shellCommand.." > "..tempFile )
-        and io.input( tempFile ) then
+    -- Attempt to execute the given shell command, instructing the host
+    -- OS to redirect its output to a results file.  Then open the file.
+    if not os.execute( shellCommand.." > "..tempFile )
+        or not io.input( tempFile ) then
 
-        for line in io.lines() do
-            if line:match( "%w" ) and
-                self:findMatch( line ) then break end
-        end
-
-        io.input():close()
-        os.remove( tempFile )
-
-        return self.result
+        -- One of the two steps above failed; we won't distinguish.
+        error( "Execution of OS command '"..shellCommand.."' failed!" )
     end
 
-    error( "Execution of OS command '"..shellCommand.."' failed!" )
-end
+    -- The shell command executed without an error, producing a result
+    -- file of the command's output AND we were able to open the file.
+    -- Loop through each line of output, calling a handler to parse it.
+    for line in io.lines() do
+        -- Screen out blank (empty) lines, and only pass non-blank
+        -- lines to the result handler function for processing.
+        if line:match( "%w" ) then
+            -- Call the result handler function with the line.
+            resultHandler = resultHandler( line )
 
-
--------------------------------------------------------------------------------
---
--- Function to query the OS to get this platform's vendor
---
-function myVendor ( )
-
-    function ShellHandler:findMatch( line )
-            local vendor = line:match( "vendor: ([^]]+)" )
-
-            if vendor then
-                self.result = vendor
-                return true
-            end
+            -- This function will return a new result handler if
+            -- additional output is expected, or nil if no additional
+            -- parsing is needed/expected.  If nil, break out of this
+            -- loop and throw away any remaining results lines.
+            if resultHandler == nil then break end
         end
+    end
 
-    return ShellHandler:parseShellCmd( "sudo lshw" )
-end
-
-
--------------------------------------------------------------------------------
---
--- Function to query the OS to get this platform's NIC data
---
-function myNICs ( )
-    local MyNICs = { }
-
-    function ShellHandler:findMatch( line )
-            local interface, ipNumber = line:match( "(%w+)%s+UP%s+([^/]+)" )
-
-            if interface then
-                MyNICs[ #MyNICs+1 ] = { interface=interface, ipNumber=ipNumber }
-            end
-        end
-
-    return ShellHandler:parseShellCmd( "ip -br addr", MyNICs )
-end
-
-
--------------------------------------------------------------------------------
---
--- Function to query the OS to get this platform's NICs' MAC addresses
---
-function myMACs ( )
-    local MyMACs = { }
-
-    function ShellHandler:findMatch( line )
-            local interface, macAddr = line:match( "%d+: (%w+):.+ether (%S+)" )
-
-            if interface then
-                MyMACs[ #MyMACs+1 ] =
-                    { interface=interface, macAddr=macAddr:upper() }
-            end
-        end
-
-    return ShellHandler:parseShellCmd( "ip -o -f link addr", MyMACs )
+    -- Close the output result file and remove it from the host file system.
+    io.input():close()
+    os.remove( tempFile )
 end
 
 
@@ -98,58 +56,244 @@ end
 --
 -- Function to query the OS to get hosts on the local network
 --
-function myLAN ( )
-    local MyLAN = { }
+function ScanNetworkForHosts ( subnet )
+    local AllDiscoveredHosts = { }
 
-    function ShellHandler:firstMatch( line )
-            local ipNumber = line:match( "Nmap scan report for (%S+)" )
+    -- Use the subnet (string) to form a shell command to carry out
+    -- the scan.  We'll use 'nmap' with a simple ping test.
+    -- This can be made more complex/thorough, if desired.
+    local shellCommand = "sudo nmap -n -sP "..subnet
 
-            if ipNumber then
-                MyLAN[ #MyLAN+1 ] = { ipNumber=ipNumber }
+    -- Define results handler functions for parsing the lines of the
+    -- results file.  The 'nmap' report consists of a a header line,
+    -- followed by one or more 3-line host records, then an ending line.
+    -- Consequently, we'll need to change handlers in sync with the
+    -- type of output line we parse.  (Only 3 handlers are needed, not 5.)
+    -- The extracted host data goes into a table defined here, which is
+    -- a 'non-local variable' to each of the handlers defined below.
+    -- Note also that each of the results handler functions is ALSO
+    -- a non-local variable to the other functions, which dynamically
+    -- change which function the shell command (above) calls.  Since
+    -- we have recursive indirect functions, we must pre-declare them.
 
-                ShellHandler.findMatch = ShellHandler.secondMatch
-            else
-                if line:match( "Starting Nmap" ) then
-                    return
-                else
-                    error( "Could not detect start of 'nmap' scan!" )
-                end
-            end
+    local resultHandlerInitial
+    local resultHandlerMiddle
+    local resultHandlerFinal
+
+
+    resultHandlerInitial = function ( line )
+        -- Attempt to match the 1st of 3 lines returned for each host.
+        local ipNumber = line:match( "Nmap scan report for (%S+)" )
+
+        -- If this is a new host record, the above return is non-nil.
+        -- In that case, create a new host 'object' and set its IP number.
+        -- Add the new host table to the array of discovered hosts.
+        if ipNumber then
+            AllDiscoveredHosts[ #AllDiscoveredHosts + 1 ] =
+                { ipNumber=ipNumber }
+
+            -- Update the handler to parse the 2nd line of the record.
+            return resultHandlerMiddle
         end
 
-    function ShellHandler:secondMatch( line )
-            local status = line:match( "Host is (%w+)" )
-
-            if status then
-                MyLAN[ #MyLAN ].status=status
-
-                ShellHandler.findMatch = ShellHandler.thirdMatch
-            end
+        -- It was NOT the first line of a host record -- which is OK.
+        -- But now it's required to be the first line of the entire
+        -- report.  Either match text from that line or throw an error.
+        if not line:match( "Starting Nmap" ) then
+            error( "Could not detect start of 'nmap' scan!" )
         end
 
-    function ShellHandler:thirdMatch( line )
-            local macAddr, vendor = line:match( "MAC Address: (%S+)%s+(.+)" )
+        -- If we do match the first line of the report, continue using
+        -- this same handler, since the very next line of the output
+        -- should be a "Line 1" of the first host record.
+        return resultHandlerInitial
+    end
 
-            if macAddr then
-                MyLAN[ #MyLAN ].macAddr=macAddr:upper()
-                MyLAN[ #MyLAN ].vendor=vendor
 
-                ShellHandler.findMatch = ShellHandler.firstMatch
-            else
-                if line:match( "Nmap done" ) then
-                    return true
-                else
-                    error( "Could not detect end of 'nmap' scan!" )
-                end
-            end
+    resultHandlerMiddle = function ( line )
+        -- Attempt to match the 2nd of 3 lines returned for each host.
+        local status = line:match( "Host is (%w+)" )
+
+        -- The above should have matched, so capture the status in the
+        -- current host record (i.e., don't increment the index yet).
+        if status then
+            AllDiscoveredHosts[ #AllDiscoveredHosts ].status=status
+
+            -- Update the handler to parse the 3cd line of the record.
+            return resultHandlerFinal
+        end
+    end
+
+
+    resultHandlerFinal = function ( line )
+        -- Attempt to match the 3rd of 3 lines returned for each host.
+        local macAddr, vendor = line:match( "MAC Address: (%S+)%s+(.+)" )
+
+        -- The above should have matched, so capture the MAC address and
+        -- vendor information (if provided).  Again, don't increment the
+        -- sequence index; this will be done on line 1 of the next record.
+        if macAddr then
+            AllDiscoveredHosts[ #AllDiscoveredHosts ].macAddr = macAddr:upper()
+            AllDiscoveredHosts[ #AllDiscoveredHosts ].vendor  = vendor
+
+            -- Update the handler to parse the 3cd line of the record.
+            return resultHandlerInitial
         end
 
-    subnet = NetworkDatabase.NetworkIPv4.subnet.."/"..
-        tostring(NetworkDatabase.NetworkIPv4.CIDR)
+        -- It was NOT the last line of a host record -- which is OK.
+        -- But now it's required to be the last line of the entire
+        -- report.  Either match text from that line or throw an error.
+        if not line:match( "Nmap done" ) then
+            error( "Could not detect end of 'nmap' scan!" )
+        end
 
-    ShellHandler.findMatch = ShellHandler.firstMatch
+        -- If it DID match the last line of the report, then we must
+        -- return nil (the default) to signal the output parser to stop.
+    end
 
-    return ShellHandler:parseShellCmd( "sudo nmap -n -sP "..subnet, MyLAN )
+    runShellCommand( shellCommand, resultHandlerInitial )
+    return AllDiscoveredHosts
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Function to query the OS to get this platform's NIC data
+--
+function getAllMyNICs ( )
+    local MyNICs = { }
+    local shellCommand = "ip -br addr"
+
+    -- The handler is a self-referential recursively-called function.
+    -- Its 'name' isn't defined until, well, it's defined.  So it can't
+    -- refer to itself without a pre-existing definition, so define it now.
+    local resultHandler
+
+    resultHandler = function ( line )
+        -- Parse a line from the above shell command.
+        -- If the line fails to parse, the returns are nil.
+        local deviceName, ipNumber = line:match( "(%w+)%s+UP%s+([^/]+)" )
+
+        -- If the IP device is "up", then add it as a table to the NICs array.
+        -- Note that 'MyNICs' is captured as a non-local variable.
+        if deviceName then MyNICs[ #MyNICs + 1 ] =
+            { deviceName=deviceName, ipNumber=ipNumber }
+        end
+
+        -- We only return nil (default) if we've completed scanning the
+        -- output of the shell command.  But we want to process all lines
+        -- in the shell command result, so return this function.
+        return resultHandler
+    end
+
+    runShellCommand( shellCommand, resultHandler )
+    return MyNICs
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Function to query the OS to get this platform's NICs' MAC addresses
+--
+function getAllMyMACs ( )
+    local MyMACs = { }
+    local shellCommand = "ip -o -f link addr"
+
+    -- The handler is a self-referential recursively-called function.
+    -- Its 'name' isn't defined until, well, it's defined.  So it can't
+    -- refer to itself without a pre-existing definition, so define it now.
+    local resultHandler
+
+    resultHandler = function ( line )
+        -- Parse a line from the above shell command.
+        -- If the line fails to parse, the returns are nil.
+        local deviceName, macAddr = line:match( "%d+: (%w+):.+ether (%S+)" )
+
+        -- If the IP device is an ethernet device, then add it as a table
+        -- to the NICs array.  Note that 'MyMACs' is a non-local variable.
+        if deviceName then MyMACs[ #MyMACs + 1 ] =
+            { deviceName=deviceName, macAddr=macAddr:upper() }
+        end
+
+        -- We only return nil (default) if we've completed scanning the
+        -- output of the shell command.  But we want to process all lines
+        -- in the shell command result, so return this function.
+        return resultHandler
+    end
+
+    runShellCommand( shellCommand, resultHandler )
+    return MyMACs
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Function to query the OS to get this platform's vendor
+--
+function getMyVendor ( )
+    local myVendorName
+    local shellCommand = "sudo lshw"
+
+    -- The handler is a self-referential recursively-called function.
+    -- Its 'name' isn't defined until, well, it's defined.  So it can't
+    -- refer to itself without a pre-existing definition, so define it now.
+    local resultHandler
+
+    resultHandler = function ( line )
+        -- Parse a line from the above shell command.
+        -- If the line fails to parse, the return is nil.
+        -- Note that 'myVendorName' is a non-local variable.
+        myVendorName = line:match( "vendor: ([^]]+)" )
+
+        -- We return nil (default) if we've completed scanning the output
+        -- of the shell command.  If the above match succeeds, we're done!
+        if myVendorName then return end
+
+        -- Otherwise, return this function to be called again.
+        return resultHandler
+    end
+
+    runShellCommand( shellCommand, resultHandler )
+    return myVendorName
+end
+
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+--
+-- Function to determine the device name of the NIC using my IP number
+--
+function myNICnameFromIPnumber ( myIPnumber )
+
+    -- Scan the sequence of my NICs to find the one bound to my IP number.
+    for _, ThisNIC in ipairs( getAllMyNICs() ) do
+
+        if ThisNIC.ipNumber == myIPnumber then
+            return ThisNIC.deviceName
+        end
+    end
+
+    -- We should have found a match.  (We did successfully scan the network.)
+    error( "Cannot find my own network interface device!" )
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Function to determine the MAC address of the NIC with my device name
+--
+function myMACaddrFromNICname ( myNICname )
+
+    -- Scan the sequence of my MACs to find the one bound to my device name.
+    for _, ThisMAC in ipairs( getAllMyMACs() ) do
+
+        if ThisMAC.deviceName == myNICname then
+            return ThisMAC.macAddr
+        end
+    end
+
+    -- We should have fonud a match.  (We did successfully scan the network.)
+    error( "Cannot find my own network device's MAC address!" )
 end
 
 
@@ -158,31 +302,13 @@ end
 -- Function to determine the MAC address of my NIC on my LAN
 --
 function getMyMacAddr ( myIPnumber )
-    local myInterface, myMacAddr
+    local myNICname
 
-    for _, NIC in ipairs( myNICs() ) do
-        if NIC.ipNumber == myIPnumber then
-            myInterface = NIC.interface
-            break
-        end
-    end
+    -- Determine the device name of my NIC used on the network.
+    myNICname = myNICnameFromIPnumber( myIPnumber )
 
-    if not myInterface then
-        error( "Cannot find my own network interface device!" )
-    end
-
-    for _, MAC in ipairs( myMACs() ) do
-        if MAC.interface == myInterface then
-            myMacAddr = MAC.macAddr
-            break
-        end
-    end
-
-    if not myMacAddr then
-        error( "Cannot find my own network device's MAC address!" )
-    end
-
-    return myMacAddr
+    -- Use that name to determine the MAC address for the IP number.
+    return myMACaddrFromNICname( myNICname )
 end
 
 
@@ -190,18 +316,33 @@ end
 --
 -- Function to get a table of all the devices detected on the network
 --
-function findHostsOnNetwork ( )
+function findHostsOnNetwork ( subnet )
+    local MyHost
 
-    MyLAN = myLAN()
+    -- Scan the network to discover hosts.
+    DiscoveredHosts = ScanNetworkForHosts( subnet )
 
-    myIPnumber = MyLAN[ #MyLAN ].ipNumber
-    myMacAddr = getMyMacAddr( myIPnumber )
+    -- Did we get anything?  (Should get at least the host...)
+    if #DiscoveredHosts < 1 then
+        error( "Scan of network "..subnet.." did not return ANY hosts! " )
+    end
 
-    MyLAN[ #MyLAN ].macAddr = myMacAddr:upper()
-    MyLAN[ #MyLAN ].vendor = "("..myVendor()..")"
+    -- Extract my host, since it isn't reported in the same way.
+    -- Note that my host is always the last one in the list (sequence).
+    MyHost = DiscoveredHosts[ #DiscoveredHosts ]
+
+    -- Resolve the missing information for my host by different means.
+    MyHost.macAddr = getMyMacAddr( MyHost.ipNumber )
+    MyHost.vendor = "("..getMyVendor()..")"
+
+    -- Now restore my host to the discovered hosts table.
+    DiscoveredHosts[ #DiscoveredHosts ] = MyHost
+
+    return DiscoveredHosts
 end
 
 
+-------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 --
 -- Gather the data, crunch it, and display the results
@@ -214,7 +355,7 @@ function sortHostsByFamiliarity ( HostsFoundOnNetwork )
     for _, DatabaseHost in ipairs( NetworkDatabase.HostsByMAC ) do
         --
         -- Extract the host's MAC address to use as the key to itself.
-        DatabaseHostByMAC[ DatabaseHost.macAddr ] = DatabaseHost
+        DatabaseHostByMAC[ DatabaseHost.macAddr:upper() ] = DatabaseHost
     end
 
     -- Empty the two sorted tables, then fill them with sorted hosts.
@@ -305,12 +446,16 @@ end
 -------------------------------------------------------------------------------
 --
 function main ( )
+    local AllDiscoveredHosts
+
+    -- The subnet we're supposed to scan is in the database file.
+    local subnet = NetworkDatabase.NetworkIPv4.subnet.."/"..
+        tostring(NetworkDatabase.NetworkIPv4.CIDR)
 
     -- Examine the network to gather data on (visible) hosts.
-    -- This data goes into table 'MyLAN'.
-    findHostsOnNetwork()
+    AllDiscoveredHosts = findHostsOnNetwork( subnet )
 
-    sortHostsByFamiliarity( MyLAN )
+    sortHostsByFamiliarity( AllDiscoveredHosts )
 
     printNetworkHostsReport()
 end
