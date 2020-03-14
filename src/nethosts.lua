@@ -16,16 +16,19 @@ function runShellCommand( shellCommand, resultHandler )
     -- that we can't receive the shell command output directly, but we
     -- CAN tell the host OS to redirect the output to a (temp) file.
     -- Note that we can't use 'mktemp': We can't receive its output,
-    -- which is its name/path is!  So we'll have to provide the path.
+    -- which is its name/path!  So we'll have to provide a path.
     local tempFile = "/tmp/lua-shell-cmd"
 
     -- Attempt to execute the given shell command, instructing the host
-    -- OS to redirect its output to a results file.  Then open the file.
-    if not os.execute( shellCommand.." > "..tempFile )
-        or not io.input( tempFile ) then
-
-        -- One of the two steps above failed; we won't distinguish.
+    -- OS to redirect its output to a results file...
+    if not os.execute( shellCommand.." > "..tempFile ) then
         error( "Execution of OS command '"..shellCommand.."' failed!" )
+    end
+
+    -- ...Then open the file.
+    if not io.input( tempFile ) then
+        error( "Cannot open file '"..tempFile..
+            "' containing OS command results!" )
     end
 
     -- The shell command executed without an error, producing a result
@@ -42,7 +45,7 @@ function runShellCommand( shellCommand, resultHandler )
             -- additional output is expected, or nil if no additional
             -- parsing is needed/expected.  If nil, break out of this
             -- loop and throw away any remaining results lines.
-            if resultHandler == nil then break end
+            if not resultHandler then break end
         end
     end
 
@@ -69,6 +72,7 @@ function ScanNetworkForHosts ( subnet )
     -- followed by one or more 3-line host records, then an ending line.
     -- Consequently, we'll need to change handlers in sync with the
     -- type of output line we parse.  (Only 3 handlers are needed, not 5.)
+    --
     -- The extracted host data goes into a table defined here, which is
     -- a 'non-local variable' to each of the handlers defined below.
     -- Note also that each of the results handler functions is ALSO
@@ -117,9 +121,9 @@ function ScanNetworkForHosts ( subnet )
         -- The above should have matched, so capture the status in the
         -- current host record (i.e., don't increment the index yet).
         if status then
-            AllDiscoveredHosts[ #AllDiscoveredHosts ].status=status
+            AllDiscoveredHosts[ #AllDiscoveredHosts ].status = status
 
-            -- Update the handler to parse the 3cd line of the record.
+            -- Update the handler to parse the 3rd line of the record.
             return resultHandlerFinal
         end
     end
@@ -136,7 +140,7 @@ function ScanNetworkForHosts ( subnet )
             AllDiscoveredHosts[ #AllDiscoveredHosts ].macAddr = macAddr:upper()
             AllDiscoveredHosts[ #AllDiscoveredHosts ].vendor  = vendor
 
-            -- Update the handler to parse the 3cd line of the record.
+            -- Update the handler to parse the 1st line of the NEXT record.
             return resultHandlerInitial
         end
 
@@ -210,7 +214,7 @@ function getAllMyMACs ( )
         local deviceName, macAddr = line:match( "%d+: (%w+):.+ether (%S+)" )
 
         -- If the IP device is an ethernet device, then add it as a table
-        -- to the NICs array.  Note that 'MyMACs' is a non-local variable.
+        -- to the MACs array.  Note that 'MyMACs' is a non-local variable.
         if deviceName then MyMACs[ #MyMACs + 1 ] =
             { deviceName=deviceName, macAddr=macAddr:upper() }
         end
@@ -292,7 +296,7 @@ function myMACaddrFromNICname ( myNICname )
         end
     end
 
-    -- We should have fonud a match.  (We did successfully scan the network.)
+    -- We should have found a match.  (We did successfully scan the network.)
     error( "Cannot find my own network device's MAC address!" )
 end
 
@@ -302,10 +306,9 @@ end
 -- Function to determine the MAC address of my NIC on my LAN
 --
 function getMyMacAddr ( myIPnumber )
-    local myNICname
 
     -- Determine the device name of my NIC used on the network.
-    myNICname = myNICnameFromIPnumber( myIPnumber )
+    local myNICname = myNICnameFromIPnumber( myIPnumber )
 
     -- Use that name to determine the MAC address for the IP number.
     return myMACaddrFromNICname( myNICname )
@@ -358,7 +361,7 @@ function sortHostsByFamiliarity ( HostsFoundOnNetwork )
         DatabaseHostByMAC[ DatabaseHost.macAddr:upper() ] = DatabaseHost
     end
 
-    -- Empty the two sorted tables, then fill them with sorted hosts.
+    -- Empty the two 'sort' tables, then fill them with sorted hosts.
     HostsThatAreKnown   = { }
     HostsThatAreUnknown = { }
 
