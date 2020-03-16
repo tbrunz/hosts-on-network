@@ -5,20 +5,22 @@
 NetworkDatabase = { }
 
 -- The network configuration
-NetworkDatabase.NetworkIPv4 = {
+NetworkDatabase.Subnets = {
 
-    subnet = "192.168.1.0",
-    CIDR   = 24,
+    {   ipv4subnet = "192.168.1.0/24",
+        description = "My home LAN",
+    },
 }
 
 
-NetworkDatabase.HostsByMAC = {
+NetworkDatabase.KnownHosts = {
 
-    { macAddr = "AA:BB:01:02:03:CC:DD",
+    {   macAddr = "AA:BB:01:02:03:CC:DD",
         description = "My laptop's Wifi",
+        vendor = "Big Computer Maker, Inc.",
     },
 
-    { macAddr = "44:55:EE:FF:66:77",
+    {   macAddr = "44:55:EE:FF:66:77",
         description = "My home Wifi router",
     },
 }

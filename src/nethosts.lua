@@ -3,8 +3,240 @@
 -------------------------------------------------------------------------------
 --
 -- Read in the local network's database of known hosts
+
+-- The local network's database of known hosts as a list (Lua sequence).
+local NetworkDatabase = require "mac-addresses"
+-- Contains two tables of network objects:
+    -- Subnets = subnet object table with the following string fields:
+        -- Subnet type, which is one of:
+            -- ipv4subnet = xxx.xxx.xxx.xxx/yy
+            -- ipv6subnet = xxxx:xxxx etc
+        -- description
+    -- KnownHosts = host object table with the following string fields:
+        -- macAddr = xx:xx:xx:xx:xx:xx
+        -- description
+        -- vendor [optional]
+
+-- 'NetworkDatabase' as an associative array keyed by its MAC addresses.
+local DatabaseOfHostsByMAC = { }
+
+-- The local network's hosts, as a list (Lua sequence) of host abjects.
+local AllDiscoveredHosts = { }
+-- Each host object is a table with the following fields (all strings):
+    -- ipNumber
+    -- status
+    -- macAddr
+    -- description [optional]
+    -- vendor [optional]
+
+-- Can't scan the entire internet...  Draw the line somewhere.
+local minCIDR = 8
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 --
-NetworkDatabase = require "mac-addresses"
+-- Do a simple validation of the format & value of an IPv6 subnet string
+--
+function validateIPv6subnet ( subnet, description )
+
+    -- The subnet passed in may not be our type; if not, ignore it.
+    if not subnet then return end
+
+    -- We will implement this subnet type later...
+    print( "IPv6 subnet support is not (yet) implemented!" )
+    print( "Cannot scan subnet '"..description.."'; skipping..." )
+    -- print()
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Do a simple validation of the format & value of an IPv4 subnet string
+--
+function validateIPv4subnet ( subnet, description )
+    local Octets = { }
+    local cidr
+
+    -- The subnet passed in may not be our type; if not, ignore it.
+    if type(subnet) ~= "string" then return end
+
+    -- We can allow the 'description' field to be optional.
+    description = description or "<no-name>"
+
+    -- Extract a subnet in the form of 'xxx.xxx.xxx.xxx/yy'.
+    -- Since there are 4 octets, build an array and process with a for loop.
+    Octets = {
+        subnet:match( "(%d+)%.(%d+)%.(%d+)%.(%d+)%/(%d+)" ),
+        }
+
+    -- Notice that there are _5_ values, however; Swap the 5th with the
+    -- 'cidr' variable, which conveniently will be 'nil'.  This not only
+    -- sets 'cidr' from the array value, it nicely erases it from the array.
+    cidr,Octets[5] = Octets[5],cidr
+
+    -- A CIDR value is required.
+    if not cidr then
+        error( "Bad subnet: CIDR value missing for subnet '"..description.."'" )
+    end
+
+    -- Get CIDR spec as a number; Max=32; Min=0 means "the entire internet".
+    cidr = tonumber( cidr )
+
+    -- Don't allow the entire internet (!); cut off at Class A searches.
+    if cidr < minCIDR or cidr > 32 then
+        error( "Bad subnet: CIDR value ("..cidr..
+            ") out of range ("..minCIDR..
+            "..32) for subnet '"..description.."'" )
+    end
+
+    -- Scan each octet and ensure values from 0..255.
+    for index, octet in ipairs( Octets ) do
+
+        -- Get the octet as a number.
+        octet = tonumber( octet )
+
+        if octet < 0 or octet > 255 then
+            error( "Subnet octet #"..index.." for '"..
+                description.."' is out of range (0..255)" )
+        end
+    end
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Validate the Network Database Subnets table
+--
+function validateSubnets ( Subnets )
+    local dataType = type( Subnets )
+
+    -- First off, the Subnets table has to actually exist as a table.
+    if dataType ~= "table" then
+        error "Missing or corrupt 'Subnets' table in Network Database file!"
+    end
+
+    -- Then, examine/validate each subnet object in the table.
+    for index, Subnet in ipairs( Subnets ) do
+
+        -- We need Subnet fields, so each Subnet must itself be a table.
+        if dataType ~= "table" then
+            error( "Found a '"..dataType.."' for 'Subnets' element "..
+                index.." in the Network Database file!" )
+        end
+
+        -- One of the following should succeed, else unknown network type.
+        validateIPv4subnet( Subnet.ipv4subnet, Subnet.description )
+        validateIPv6subnet( Subnet.ipv6subnet, Subnet.description )
+    end
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Validate the Network Database KnownHosts table
+--
+function validateMACaddress ( macAddress )
+    local dataType = type( KnownHosts )
+
+    -- This loop depends on the host object having a MAC address.
+    if type(macAddress) ~= "string" then
+        error( "Host #"..index..
+            " in the Network Database file has no MAC address!" )
+    end
+
+    -- Extract a MAC address in the form of 'xx:xx:xx:xx:xx:xx'.
+    -- Since there are 6 octets, build an array and process with a for loop.
+    Octets = {
+        macAddress:match( "(%x%x)%:(%x%x)%:(%x%x)%:(%x%x)%:(%x%x)%:(%x%x)" ),
+        }
+
+    -- Scan each octet and ensure values from 0..255.
+    for index, octet in ipairs( Octets ) do
+
+        -- Get the octet as a hex number.
+        octet = tonumber( octet, 16 )
+
+        if octet < 0 or octet > 255 then
+            error( "Subnet octet #"..index.." for '"..
+                description.."' is out of range (0..255)" )
+        end
+    end
+
+    -- Ensure that the MAC address is normalized to uppercase.
+    return macAddress:upper()
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Validate the Network Database KnownHosts table
+--
+function validateKnownHosts ( KnownHosts )
+    local dataType = type( KnownHosts )
+
+    -- First off, the KnownHosts table has to actually exist as a table.
+    if dataType ~= "table" then
+        error "Missing or corrupt 'KnownHosts' table in Network Database file!"
+    end
+
+    -- Then, examine/validate each host object in the table.
+    for index, KnownHost in ipairs( KnownHosts ) do
+
+        -- We need KnownHost fields, so each KnownHost must itself be a table.
+        if dataType ~= "table" then
+            error( "Found a '"..dataType.."' for 'KnownHosts' element "..
+                index.." in the Network Database file!" )
+        end
+
+        -- The MAC address field is mandatory & needs format verification.
+        local macAddress = KnownHost.macAddr
+
+        if type(macAddress) ~= "string" then
+            error( "Host #"..index..
+                " in the Network Database file has no MAC address!" )
+        end
+
+        -- Ensure that the MAC address is normalized to uppercase.
+        KnownHost.macAddr = validateMACaddress( macAddress )
+
+        -- The description field is mandatory.
+        if type( KnownHost.description ) ~= "string" then
+            error( "Host #"..index..
+                " in the Network Database file has no description!" )
+        end
+    end
+end
+
+
+-------------------------------------------------------------------------------
+--
+-- Validate the NetworkDatabase table prior to using its data
+--
+function validateNetworkDatabase ( Database )
+
+    validateSubnets( Database.Subnets )
+
+    validateKnownHosts( Database.KnownHosts )
+end
+
+
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+--
+-- Sort a hosts database into an associative array keyed by MAC address
+--
+function sortHostsByMACaddress ( DatabaseOfHosts )
+    HostsByMAC = { }
+
+    -- Turn the DatabaseOfHosts sequence "inside out" to make an
+    -- associative array of each known host keyed by its MAC addr.
+    for index, DatabaseHost in ipairs( DatabaseOfHosts ) do
+
+        HostsByMAC[ DatabaseHost.macAddr ] = DatabaseHost
+    end
+
+    return HostsByMAC
+end
 
 
 -------------------------------------------------------------------------------
@@ -59,13 +291,21 @@ end
 --
 -- Function to query the OS to get hosts on the local network
 --
-function ScanNetworkForHosts ( subnet )
+function ScanNetworkForHosts ( Subnet )
     local AllDiscoveredHosts = { }
+
+    -- Determine whether IPv4 or IPv6
+    local thisSubnet = Subnet.ipv4subnet
+
+    -- IPv6 subnet scanning requires an additional CLI switch.
+    if not thisSubnet then
+        thisSubnet = "-6 "..Subnet.ipv6subnet
+    end
 
     -- Use the subnet (string) to form a shell command to carry out
     -- the scan.  We'll use 'nmap' with a simple ping test.
     -- This can be made more complex/thorough, if desired.
-    local shellCommand = "sudo nmap -n -sP "..subnet
+    local shellCommand = "sudo nmap -n -sP "..thisSubnet
 
     -- Define results handler functions for parsing the lines of the
     -- results file.  The 'nmap' report consists of a a header line,
@@ -118,14 +358,17 @@ function ScanNetworkForHosts ( subnet )
         -- Attempt to match the 2nd of 3 lines returned for each host.
         local status = line:match( "Host is (%w+)" )
 
-        -- The above should have matched, so capture the status in the
-        -- current host record (i.e., don't increment the index yet).
-        if status then
-            AllDiscoveredHosts[ #AllDiscoveredHosts ].status = status
-
-            -- Update the handler to parse the 3rd line of the record.
-            return resultHandlerFinal
+        -- The above should have matched; if not, the scan failed.
+        if not status then
+            error( "Network scan failed for host with IP '"..
+                AllDiscoveredHosts[ #AllDiscoveredHosts ].ipNumber.."'! " )
         end
+
+        -- Capture the status in the current host record.
+        AllDiscoveredHosts[ #AllDiscoveredHosts ].status = status
+
+        -- Update the handler to parse the 3rd line of the record.
+        return resultHandlerFinal
     end
 
 
@@ -234,9 +477,16 @@ end
 --
 -- Function to query the OS to get this platform's vendor
 --
-function getMyVendor ( )
+function getMyVendor ( myMACaddress )
     local myVendorName
     local shellCommand = "sudo lshw"
+
+    -- If this information is in the database, don't derive it.
+    if myMACaddress then
+        myVendorName = DatabaseOfHostsByMAC[ myMACaddress ].vendor
+
+        if myVendorName then return myVendorName end
+    end
 
     -- The handler is a self-referential recursively-called function.
     -- Its 'name' isn't defined until, well, it's defined.  So it can't
@@ -268,12 +518,24 @@ end
 -- Function to determine the device name of the NIC using my IP number
 --
 function myNICnameFromIPnumber ( myIPnumber )
+    -- Ensure that we were passed a valid IP number.
+    if not myIPnumber then
+        error "Cannot resolve an interface name from a 'nil' IP number!"
+    end
 
     -- Scan the sequence of my NICs to find the one bound to my IP number.
     for _, ThisNIC in ipairs( getAllMyNICs() ) do
+        -- Ensure that the NIC has an ipNumber field.
+        if not ThisNIC or not ThisNIC.ipNumber then
+            error( "Network interface '"..ThisNIC.deviceName..
+                "' has no IP number!" )
+        end
 
         if ThisNIC.ipNumber == myIPnumber then
-            return ThisNIC.deviceName
+            if ThisNIC.deviceName then return ThisNIC.deviceName end
+
+            error( "Network interface with IP number '"..
+                ThisNIC.ipNumber.."' has no description!" )
         end
     end
 
@@ -287,12 +549,25 @@ end
 -- Function to determine the MAC address of the NIC with my device name
 --
 function myMACaddrFromNICname ( myNICname )
+    -- Ensure that we were passed a valid name.
+    if not myNICname then
+        error "Cannot resolve a MAC address from a 'nil' interface name!"
+    end
 
     -- Scan the sequence of my MACs to find the one bound to my device name.
     for _, ThisMAC in ipairs( getAllMyMACs() ) do
 
+        -- Ensure that the MAC address has a deviceName field.
+        if not ThisMAC or not ThisMAC.deviceName then
+            error( "Network interface '"..ThisMAC.macAddr..
+                "' has no device name!" )
+        end
+
         if ThisMAC.deviceName == myNICname then
-            return ThisMAC.macAddr
+            if ThisMAC.macAddr then return ThisMAC.macAddr end
+
+            error( "Network interface '"..
+                ThisMAC.deviceName.."' has no MAC address!" )
         end
     end
 
@@ -319,15 +594,17 @@ end
 --
 -- Function to get a table of all the devices detected on the network
 --
-function findHostsOnNetwork ( subnet )
+function findHostsOnNetwork ( Subnet )
     local MyHost
+    local subnetDescr = Subnet.description
 
     -- Scan the network to discover hosts.
-    DiscoveredHosts = ScanNetworkForHosts( subnet )
+    DiscoveredHosts = ScanNetworkForHosts( Subnet )
 
     -- Did we get anything?  (Should get at least the host...)
     if #DiscoveredHosts < 1 then
-        error( "Scan of network "..subnet.." did not return ANY hosts! " )
+        error( "Scan of network "..subnetDescr..
+            " did not return ANY hosts! " )
     end
 
     -- Extract my host, since it isn't reported in the same way.
@@ -336,7 +613,7 @@ function findHostsOnNetwork ( subnet )
 
     -- Resolve the missing information for my host by different means.
     MyHost.macAddr = getMyMacAddr( MyHost.ipNumber )
-    MyHost.vendor = "("..getMyVendor()..")"
+    MyHost.vendor = "("..getMyVendor( MyHost.macAddr )..")"
 
     -- Now restore my host to the discovered hosts table.
     DiscoveredHosts[ #DiscoveredHosts ] = MyHost
@@ -351,37 +628,34 @@ end
 -- Gather the data, crunch it, and display the results
 --
 function sortHostsByFamiliarity ( HostsFoundOnNetwork )
-    local DatabaseHostByMAC = { }
-
-    -- Turn the NetworkDatabase sequence "inside out" to make an
-    -- associative array of each known host keyed by its MAC addr.
-    for _, DatabaseHost in ipairs( NetworkDatabase.HostsByMAC ) do
-        --
-        -- Extract the host's MAC address to use as the key to itself.
-        DatabaseHostByMAC[ DatabaseHost.macAddr:upper() ] = DatabaseHost
-    end
-
-    -- Empty the two 'sort' tables, then fill them with sorted hosts.
-    HostsThatAreKnown   = { }
-    HostsThatAreUnknown = { }
+    local HostsThatAreKnown   = { }
+    local HostsThatAreUnknown = { }
 
     -- Sort the discovered hosts into two tables, depending on whether or
     -- not they are known hosts (listed in the 'NetworkDatabase' table).
     for _, ThisNetworkHost in ipairs( HostsFoundOnNetwork ) do
-        --
+        -- Ensure that the host has a MAC address (will be used as a key).
+        if not ThisNetworkHost.macAddr then
+            error( "MAC address missing for discovered host at IP number '"..
+                ThisNetworkHost.ipNumber.."' " )
+        end
+
         -- If this host is in the database, the lookup is non-nil.
-        local DatabaseHost = DatabaseHostByMAC[ ThisNetworkHost.macAddr ]
+        local DatabaseHost = DatabaseOfHostsByMAC[ ThisNetworkHost.macAddr ]
 
         if DatabaseHost then
-            -- If known, then set its description field from the DB.
+            -- If known, set this host's description field from the database.
             ThisNetworkHost.description = DatabaseHost.description
 
+            -- Create a new host object in the list of known hosts.
             HostsThatAreKnown[ #HostsThatAreKnown + 1 ] = ThisNetworkHost
         else
-            -- We don't know this one, so we have no other description.
+            -- Create a new unknown host, so it won't have a description.
             HostsThatAreUnknown[ #HostsThatAreUnknown + 1 ] = ThisNetworkHost
         end
     end
+
+    return HostsThatAreKnown, HostsThatAreUnknown
 end
 
 
@@ -390,8 +664,8 @@ end
 -- Display a host record as part of a hosts table report
 --
 function printHostReportRecord ( familiarityTag, NetworkHost )
-    local ipNumberString = tostring(NetworkHost.ipNumber)
-    local macAddrString  = tostring(NetworkHost.macAddr)
+    local ipNumberString = NetworkHost.ipNumber
+    local macAddrString  = NetworkHost.macAddr
     local description    = NetworkHost.description
     local reportFormat = "%s host: IP number %-13s MAC addr %s %s "
 
@@ -413,7 +687,7 @@ end
 --
 -- Display a report table for one of known/unknown hosts that were found
 --
-function printHostReport ( SortedHosts, familiarityTag )
+function printHostReport ( Subnet, SortedHosts, familiarityTag )
 
     print()
 
@@ -422,7 +696,10 @@ function printHostReport ( SortedHosts, familiarityTag )
         print( string.format( "No %s hosts found.", familiarityTag ) )
     end
 
-    -- Or print out all the host records for this table.
+    -- Or print out the host records for this subnet.
+    print( "Subnet '"..Subnet.description.."': " )
+
+    -- Print out all the host records for this table type.
     for _, ThisHost in ipairs( SortedHosts ) do
 
         printHostReportRecord( familiarityTag, ThisHost )
@@ -434,36 +711,47 @@ end
 --
 -- Display a pair of tables of the known/unknown hosts that were found
 --
-function printNetworkHostsReport ( )
+function genNetworkHostsReport ( Subnet,
+        HostsThatAreKnown, HostsThatAreUnknown )
     local isKnownTag   = "Known"
     local isUnknownTag = "Unknown"
 
     -- Start with the known hosts, then the unknown hosts.
-    printHostReport( HostsThatAreKnown, isKnownTag )
+    printHostReport( Subnet, HostsThatAreKnown, isKnownTag )
 
-    printHostReport( HostsThatAreUnknown, isUnknownTag )
+    printHostReport( Subnet, HostsThatAreUnknown, isUnknownTag )
 end
 
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
 --
-function main ( )
-    local AllDiscoveredHosts
+function main ( Database )
+    local HostsThatAreKnown
+    local HostsThatAreUnknown
 
-    -- The subnet we're supposed to scan is in the database file.
-    local subnet = NetworkDatabase.NetworkIPv4.subnet.."/"..
-        tostring(NetworkDatabase.NetworkIPv4.CIDR)
+    -- Validate the network database read in from another file.
+    validateNetworkDatabase( Database )
 
-    -- Examine the network to gather data on (visible) hosts.
-    AllDiscoveredHosts = findHostsOnNetwork( subnet )
+    -- Sort the known hosts database into an assoc array keyed by MAC address.
+    DatabaseOfHostsByMAC = sortHostsByMACaddress( Database.KnownHosts )
 
-    sortHostsByFamiliarity( AllDiscoveredHosts )
+    -- Now process each subnet in the list of subnets.
+    for _, Subnet in ipairs( Database.Subnets ) do
 
-    printNetworkHostsReport()
+        -- Examine the network to gather data on (visible) hosts.
+        AllDiscoveredHosts = findHostsOnNetwork( Subnet )
+
+        -- Sort what we found into lists of known & unknown hosts.
+        HostsThatAreKnown, HostsThatAreUnknown =
+            sortHostsByFamiliarity( AllDiscoveredHosts )
+
+        -- Generate a report of what we found.
+        genNetworkHostsReport( Subnet, HostsThatAreKnown, HostsThatAreUnknown )
+    end
 end
 
 
-main()
+main( NetworkDatabase )
 
 -------------------------------------------------------------------------------
