@@ -667,7 +667,7 @@ function printHostReportRecord ( familiarityTag, NetworkHost )
     local ipNumberString = NetworkHost.ipNumber
     local macAddrString  = NetworkHost.macAddr
     local description    = NetworkHost.description
-    local reportFormat = "%s host: IP number %-13s MAC addr %s %s "
+    local reportFormat = "%s host: IP number %-14s MAC addr %s %s "
 
     -- Some hosts will report a description of themselves; if so, include it.
     -- If not, then 'description' will be nil; change to an empty string.
@@ -694,6 +694,7 @@ function printHostReport ( Subnet, SortedHosts, familiarityTag )
     -- Either report that we didn't find any hosts of this type...
     if #SortedHosts == 0 then
         print( string.format( "No %s hosts found.", familiarityTag ) )
+        return
     end
 
     -- Or print out the host records for this subnet.
