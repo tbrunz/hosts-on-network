@@ -387,7 +387,15 @@ function ScanNetworkForHosts ( Subnet )
             return resultHandlerInitial
         end
 
-        -- It was NOT the last line of a host record -- which is OK.
+        -- It was NOT the last line of a host record -- which is OK...
+        -- as long as we found at least one host AND we read a MAC
+        -- address for that one host -- which will be the first host.
+        if AllDiscoveredHosts[1].ipNumber and
+            not AllDiscoveredHosts[1].macAddr then
+                error( "NMAP is not returning MAC addresses;"..
+                    " is 'sudo' working?" )
+        end
+
         -- But now it's required to be the last line of the entire
         -- report.  Either match text from that line or throw an error.
         if not line:match( "Nmap done" ) then
