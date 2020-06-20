@@ -135,8 +135,9 @@ end
 --
 -- Validate the Network Database KnownHosts table
 --
-function validateMACaddress ( macAddress )
+function validateMACaddress ( macAddress, index )
     local dataType = type( KnownHosts )
+    index = index or "<unknown>"
 
     -- This loop depends on the host object having a MAC address.
     if type(macAddress) ~= "string" then
@@ -197,7 +198,7 @@ function validateKnownHosts ( KnownHosts )
         end
 
         -- Ensure that the MAC address is normalized to uppercase.
-        KnownHost.macAddr = validateMACaddress( macAddress )
+        KnownHost.macAddr = validateMACaddress( macAddress, index )
 
         -- The description field is mandatory.
         if type( KnownHost.description ) ~= "string" then
@@ -308,7 +309,7 @@ function ScanNetworkForHosts ( Subnet )
     local shellCommand = "sudo nmap -n -sP "..thisSubnet
 
     -- Define results handler functions for parsing the lines of the
-    -- results file.  The 'nmap' report consists of a a header line,
+    -- results file.  The 'nmap' report consists of a header line,
     -- followed by one or more 3-line host records, then an ending line.
     -- Consequently, we'll need to change handlers in sync with the
     -- type of output line we parse.  (Only 3 handlers are needed, not 5.)
