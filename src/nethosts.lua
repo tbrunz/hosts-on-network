@@ -491,7 +491,7 @@ function getMyVendor ( myMACaddress )
     local shellCommand = "sudo lshw"
 
     -- If this information is in the database, don't derive it.
-    if myMACaddress then
+    if myMACaddress and vendor then
         myVendorName = DatabaseOfHostsByMAC[ myMACaddress ].vendor
 
         if myVendorName then return myVendorName end
