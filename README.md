@@ -5,7 +5,14 @@ This app is a Lua script (based on Lua 5.3 and launchable from the CLI) that
 will scan a designated network and compile a list of MAC addresses for hosts 
 that it finds.
 
-The script uses `nmap` to run a simple ping test (`-sP`) to locate hosts.
+#### NOTE: This script uses `nmap` to scan networks.  
+> _While this script has been coded to run a simple ping test (`-sP`) to locate 
+hosts, it is **not** intended for use on your employer's network!  Many 
+companies do not take kindly to anyone other than authorized IT personnel 
+running port scans on their networks.  This script is intended for your home 
+networks and private lab/office networks, i.e., networks that are under **your** 
+control and authorization.  Do **not** attempt to run this or any other 
+scanning tools on your employer's network without their knowledge and consent!_
 
 The address of the network to be scanned, along with a list of the known 
 hosts, is kept in an adjacent "database" file.  This file is a "Lua data 
@@ -80,3 +87,7 @@ code uses a simple 'ping scan' (`nmap -n -sP <subnet>`), but other more
 complicated/thorough scans can be performed, some of which would take a 
 lot more time to complete, but would be better at finding hosts that 
 _would prefer not to be found_.
+
+Again, do **_not_** attempt to run this or any other scanning tools on 
+your employer's network without their knowledge and consent!  
+**You have been warned...**
