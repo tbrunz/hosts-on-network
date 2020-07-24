@@ -1,8 +1,9 @@
 # hosts-on-network
 ### Scan a network for hosts, identifying which are known & which are unknown
 
-This app is a Lua script (based on Lua 5.3 and launchable from the CLI) that 
-will scan a designated network and compile a list of MAC addresses for hosts 
+This app is a Lua script (runs in Lua 5.1, 5.2, and 5.3; not tested with 5.4 
+yet) that is launchable from the CLI) that will scan a designated network and 
+compile a list of MAC addresses for hosts 
 that it finds.
 
 #### NOTE: This script uses `nmap` to scan networks.  
@@ -61,9 +62,13 @@ chmod +x nethosts.lua
 ./nethosts.lua
 ```
 
-It may request your password for `sudo` authorization (because it runs 
-`nmap` in a shell to locate hosts on your network).  Then, after a few 
-seconds, you should get a report in your terminal:
+It may request your password for `sudo` authorization, since the script 
+runs`nmap` in a shell to locate hosts on your network.  Why does `nmap` 
+need `sudo` authorization?  Because without it, `nmap` will not return MAC 
+addresses, and without MAC addresses, the script cannot make positive 
+identifications of your known hosts.
+
+After running for a few seconds, you should get a report in your terminal:
 ```
 Subnet 'My home LAN': 
 Known host: IP number 192.168.1.1    MAC addr 44:55:EE:FF:66:77   descr: My home Wifi router
