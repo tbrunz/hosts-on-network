@@ -15,7 +15,7 @@ NetworkDatabase.Subnets = {
 
 NetworkDatabase.KnownHosts = {
 
-    {   macAddr = "AA:BB:01:02:03:CC:DD",
+    {   macAddr = "AA:BB:01:02:CC:DD",
         description = "My laptop's Wifi",
         vendor = "Big Computer Maker, Inc.",
     },
