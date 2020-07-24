@@ -54,7 +54,8 @@ chmod +x nethosts.lua
 ./nethosts.lua
 ```
 
-It may request your password for `sudo` authorization.  Then, after a few 
+It may request your password for `sudo` authorization (because it runs 
+`nmap` in a shell to locate hosts on your network).  Then, after a few 
 seconds, you should get a report in your terminal:
 ```
 Subnet 'My home LAN': 
@@ -72,3 +73,10 @@ in the 'known host' report list.
 
 Of course, the purpose of this script is to find hosts on your network 
 that are truly 'unknown' and don't belong there!
+
+Note that you can 'tune' the strategy used to find hosts on your network 
+by changing the arguments passed to `nmap` on line 309.  Currently, the 
+code uses a simple 'ping scan' (`nmap -n -sP <subnet>`), but other more 
+complicated/thorough scans can be performed, some of which would take a 
+lot more time to complete, but would be better at finding hosts that 
+_would prefer not to be found_.
