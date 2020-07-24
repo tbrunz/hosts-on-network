@@ -30,3 +30,29 @@ addresses and descriptions of each device to make them recognizable.
 Two resulting lists are created: One for host info corresponding to hosts
 that are known and one for hosts that are not recognized.  A report is 
 then produced and dumped to `stdout`
+
+### How to use hosts-on-network
+The first step is to enter the information you know for your network hosts 
+in the `mac-addresses.lua` file.  This file has two sections; both must be 
+completed.  The first is used to specify your network(s), more than one is 
+allowed.  Currently only IPv4 is supported.  (IPv6 support is possible, but 
+there are no plans to add it any time soon.)  The second section is used to 
+specify your known hosts.  Both sections are arranged as Lua tables; the 
+source code provides examples for each.  Note that the `vendor` field is 
+optional.  
+
+If you don't have all the info handy for all your hosts, you can omit them 
+initially, then add them later, after you get the first report.
+
+The next step is to run `nethosts.lua`, which is configured as a shell 
+script (i.e., it has `#! /usr/bin/env lua` as its first line so that it 
+will run if launched from the Linux command line).  So the commands would 
+be:
+```
+cd <directory with nethosts.lua>
+chmod +x nethosts.lua
+./nethosts.lua
+```
+
+After a few seconds, you should get a report in your terminal:
+
