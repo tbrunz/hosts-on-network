@@ -54,5 +54,21 @@ chmod +x nethosts.lua
 ./nethosts.lua
 ```
 
-After a few seconds, you should get a report in your terminal:
+It may request your password for `sudo` authorization.  Then, after a few 
+seconds, you should get a report in your terminal:
+```
+Subnet 'My home LAN': 
+Known host: IP number 192.168.1.1    MAC addr 44:55:EE:FF:66:77   descr: My home Wifi router
+Known host: IP number 192.168.1.10   MAC addr AA:BB:01:02:CC:DD   descr: My laptop's Wifi
 
+No Unknown hosts found.
+```
+If there are 'unknown' hosts listed, step 3 is to track them down and 
+determine what they are.  If you weren't able to enter the information 
+for some of your known hosts earlier, then it's likely that some of the 
+unknown hosts listed are those devices.  In this case, copy their data 
+into `mac-addresses.lua`, and run again.  This time they should show up 
+in the 'known host' report list.
+
+Of course, the purpose of this script is to find hosts on your network 
+that are truly 'unknown' and don't belong there!
