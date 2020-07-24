@@ -68,7 +68,8 @@ need `sudo` authorization?  Because without it, `nmap` will not return MAC
 addresses, and without MAC addresses, the script cannot make positive 
 identifications of your known hosts.
 
-After running for a few seconds, you should get a report in your terminal:
+After running for a few seconds, you should get a report in your terminal
+similar to this:
 ```
 Subnet 'My home LAN': 
 Known host: IP number 192.168.1.1    MAC addr 44:55:EE:FF:66:77   descr: My home Wifi router
@@ -76,6 +77,25 @@ Known host: IP number 192.168.1.10   MAC addr AA:BB:01:02:CC:DD   descr: My lapt
 
 No Unknown hosts found.
 ```
+
+Or, if there are 'unknown' hosts detected, you'll get a report similar 
+to this:
+```
+Subnet 'My home LAN': 
+Known host: IP number 192.168.1.1    MAC addr 44:55:EE:FF:66:77   descr: My home Wifi router
+Known host: IP number 192.168.1.10   MAC addr AA:BB:01:02:CC:DD   descr: My laptop's Wifi
+
+Subnet 'My home LAN': 
+Unknown host: IP number 192.168.1.199  MAC addr 00:01:FF:EE:05:06 
+```
+
+If the script seems to be taking too long to respond, press `Ctrl-C` and 
+check `mac-addresses.lua` to see if you're trying to scan an unreachable 
+network.  `nmap` will hang on scanning unreachable networks, and this will 
+make it appear that the Lua script is hanging.  (You can test this by 
+running the the `nmap` command directly; it will be displayed in your 
+terminal as part of the Lua stack trace if you `Ctrl-C` out of it.)
+
 If there are 'unknown' hosts listed, step 3 is to track them down and 
 determine what they are.  If you weren't able to enter the information 
 for some of your known hosts earlier, then it's likely that some of the 
