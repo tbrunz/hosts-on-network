@@ -41,7 +41,16 @@ Two resulting lists are created: One for host info corresponding to hosts
 that are known and one for hosts that are not recognized.  A report is 
 then produced and dumped to `stdout`
 
-### How to use hosts-on-network
+### Prerequisites
+You'll need a Linux system with Lua installed (any version > 5.0).  While 
+you probably want/have Luarocks, this script doesn't require any 'rocks'.
+I.e., you don't need `luafilesystem` or `luasocket` installed.
+
+You'll need to have `nmap` installed, too.  To run the script, you'll 
+need `sudo` privileges, since `nmap` needs to be run as superuser in 
+order to report the MAC addresses of hosts it finds.
+
+## How to use hosts-on-network
 The first step is to enter the information you know for your network hosts 
 in the `mac-addresses.lua` file.  This file has two sections; both must be 
 completed.  The first is used to specify your network(s), more than one is 
@@ -117,4 +126,5 @@ _would prefer not to be found_.
 
 Again, do **_not_** attempt to run this or any other scanning tools on 
 your employer's network without their knowledge and consent!  
+
 **You have been warned...**
