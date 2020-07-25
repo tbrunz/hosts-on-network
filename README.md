@@ -2,9 +2,11 @@
 ### Scan a network for hosts, identifying which are known & which are unknown
 
 This app is a Lua script (runs in Lua 5.1, 5.2, and 5.3; not tested with 5.4 
-yet) that is launchable from the CLI) that will scan a designated network and 
-compile a list of MAC addresses for hosts 
-that it finds.
+yet) that is launchable from the CLI that will scan a designated network and 
+compile a list of MAC addresses for hosts that it finds.
+
+It was written for Linux (but can probably be adapted for Mac without much 
+work; Windows? Well, it runs in a VM).
 
 #### NOTE: This script uses `nmap` to scan networks.  
 > _While this script has been coded to run a simple ping test (`-sP`) to locate 
