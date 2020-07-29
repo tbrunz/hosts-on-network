@@ -306,7 +306,7 @@ function ScanNetworkForHosts ( Subnet )
     -- Use the subnet (string) to form a shell command to carry out
     -- the scan.  We'll use 'nmap' with a simple ping test.
     -- This can be made more complex/thorough, if desired.
-    local shellCommand = "sudo nmap -n -sP "..thisSubnet
+    local shellCommand = "nmap -n -sP "..thisSubnet
 
     -- Define results handler functions for parsing the lines of the
     -- results file.  The 'nmap' report consists of a header line,
@@ -488,7 +488,7 @@ end
 --
 function getMyVendor ( myMACaddress )
     local myVendorName
-    local shellCommand = "sudo lshw"
+    local shellCommand = "lshw"
 
     -- If this information is in the database, don't derive it.
     if myMACaddress and vendor then

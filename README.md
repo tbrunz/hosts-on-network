@@ -70,7 +70,7 @@ be:
 ```
 cd <directory with nethosts.lua>
 chmod +x nethosts.lua
-./nethosts.lua
+sudo [lua] nethosts.lua
 ```
 
 It may request your password for `sudo` authorization, since the script 
