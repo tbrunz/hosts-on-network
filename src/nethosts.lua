@@ -1,36 +1,45 @@
 #! /usr/bin/env lua
 
 -------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 --
--- Read in the local network's database of known hosts
+-- Scan a network for hosts, identifying which are known and unknown.
+--
+-- This app is a Lua script that is launchable from the CLI that will scan
+-- a designated network and compile a list of MAC addresses for hosts that
+-- it finds.  Runs in Lua 5.1, 5.2, and 5.3; not yet tested with Lua 5.4.
+--
 
--- The local network's database of known hosts as a list (Lua sequence).
+-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+--
+-- Read in the local network's database of known hosts as a sequence (array).
 local NetworkDatabase = require "mac-addresses"
--- Contains two tables of network objects:
-    -- Subnets = subnet object table with the following string fields:
-        -- Subnet type, which is one of:
-            -- ipv4subnet = xxx.xxx.xxx.xxx/yy
-            -- ipv6subnet = xxxx:xxxx etc
-        -- description
-    -- KnownHosts = host object table with the following string fields:
-        -- macAddr = xx:xx:xx:xx:xx:xx
-        -- description
-        -- vendor [optional]
+    -- Contains two tables of network objects:
+        -- Subnets = subnet object table with the following string fields:
+            -- Subnet type, which is one of:
+                -- ipv4subnet = xxx.xxx.xxx.xxx/yy
+                -- ipv6subnet = xxxx:xxxx etc
+            -- description
+        -- KnownHosts = host object table with the following string fields:
+            -- macAddr = xx:xx:xx:xx:xx:xx
+            -- description
+            -- vendor [optional]
 
--- 'NetworkDatabase' as an associative array keyed by its MAC addresses.
+-- Create an associative array of hasts keyed by their MAC addresses.
 local DatabaseOfHostsByMAC = { }
 
--- The local network's hosts, as a list (Lua sequence) of host abjects.
+-- Create a sequence (indexed array) of host objects on the local network.
 local AllDiscoveredHosts = { }
--- Each host object is a table with the following fields (all strings):
-    -- ipNumber
-    -- status
-    -- macAddr
-    -- description [optional]
-    -- vendor [optional]
+    -- Each host object is a table with the following fields (all strings):
+        -- ipNumber
+        -- status
+        -- macAddr
+        -- description [optional]
+        -- vendor [optional]
 
 -- Can't scan the entire internet...  Draw the line somewhere.
-local minCIDR = 8
+local minCIDR = 16
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
