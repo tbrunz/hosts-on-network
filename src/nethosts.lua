@@ -9,6 +9,12 @@
 -- a designated network and compile a list of MAC addresses for hosts that
 -- it finds.  Runs in Lua 5.1, 5.2, and 5.3; not yet tested with Lua 5.4.
 --
+-- Must be run in a *nix environment; uses 'nmap', 'ip', and 'lshw'.
+-- User must have 'sudo' privileges.
+--
+-- To use this script, open a terminal window and execute
+--     $ sudo lua nethosts.lua
+--
 
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
@@ -26,7 +32,7 @@ local NetworkDatabase = require "mac-addresses"
             -- description
             -- vendor [optional]
 
--- Create an associative array of hasts keyed by their MAC addresses.
+-- Create an associative array of hosts keyed by their MAC addresses.
 local DatabaseOfHostsByMAC = { }
 
 -- Create a sequence (indexed array) of host objects on the local network.
@@ -126,8 +132,10 @@ function validateSubnets ( Subnets )
 
     -- Then, examine/validate each subnet object in the table.
     for index, Subnet in ipairs( Subnets ) do
-
+    
         -- We need Subnet fields, so each Subnet must itself be a table.
+        dataType = type( Subnet )
+
         if dataType ~= "table" then
             error( "Found a '"..dataType.."' for 'Subnets' element "..
                 index.." in the Network Database file!" )
@@ -193,6 +201,8 @@ function validateKnownHosts ( KnownHosts )
     for index, KnownHost in ipairs( KnownHosts ) do
 
         -- We need KnownHost fields, so each KnownHost must itself be a table.
+        dataType = type( KnownHost )
+        
         if dataType ~= "table" then
             error( "Found a '"..dataType.."' for 'KnownHosts' element "..
                 index.." in the Network Database file!" )
@@ -543,6 +553,7 @@ function myNICnameFromIPnumber ( myIPnumber )
 
     -- Scan the sequence of my NICs to find the one bound to my IP number.
     for _, ThisNIC in ipairs( getAllMyNICs() ) do
+    
         -- Ensure that the NIC has an ipNumber field.
         if not ThisNIC or not ThisNIC.ipNumber then
             error( "Network interface '"..ThisNIC.deviceName..
@@ -652,6 +663,7 @@ function sortHostsByFamiliarity ( HostsFoundOnNetwork )
     -- Sort the discovered hosts into two tables, depending on whether or
     -- not they are known hosts (listed in the 'NetworkDatabase' table).
     for _, ThisNetworkHost in ipairs( HostsFoundOnNetwork ) do
+    
         -- Ensure that the host has a MAC address (will be used as a key).
         if not ThisNetworkHost.macAddr then
             error( "MAC address missing for discovered host at IP number '"..
@@ -668,7 +680,7 @@ function sortHostsByFamiliarity ( HostsFoundOnNetwork )
             -- Create a new host object in the list of known hosts.
             HostsThatAreKnown[ #HostsThatAreKnown + 1 ] = ThisNetworkHost
         else
-            -- Create a new unknown host, so it won't have a description.
+            -- Create a new unknown host; it won't have a description.
             HostsThatAreUnknown[ #HostsThatAreUnknown + 1 ] = ThisNetworkHost
         end
     end
@@ -774,3 +786,4 @@ end
 main( NetworkDatabase )
 
 -------------------------------------------------------------------------------
+
